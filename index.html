@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>定点 ｜ 怪談</title>
+<meta name="description" content="二つの記録画像を見比べて、変わったところを押してください。ただそれだけの作業です。">
+<meta name="theme-color" content="#080a09">
+<style>
+  :root{
+    --bg:#080a09;
+    --bg2:#0e120f;
+    --frame:#171b18;
+    --line:#2c332e;
+    --txt:#9fb3a2;
+    --hi:#cfe0cc;
+    --red:#cc3b28;
+    --amber:#c9a63a;
+    --f:"SF Mono","Menlo","Consolas","Osaka-Mono","MS Gothic",monospace;
+    --fj:"Hiragino Kaku Gothic ProN","YuGothic","Yu Gothic","Meiryo",sans-serif;
+    --chrome:162px;   /* 画の上下に要る余白。横向きの端末では詰める */
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:var(--f);
+    color:var(--txt);
+    overflow:hidden;
+    background:var(--bg);
+  }
+  section{position:relative;z-index:2;display:none;width:100%;height:100%;
+    align-items:center;justify-content:center;flex-direction:column;padding:0 14px;}
+  section.on{display:flex;}
+
+  .btn{
+    font-family:var(--fj);cursor:pointer;
+    background:var(--frame);color:var(--txt);
+    border:1px solid var(--line);border-radius:2px;
+    padding:11px 20px;font-size:13px;letter-spacing:.1em;
+    transition:background .15s,color .15s,border-color .15s;
+  }
+  .btn:hover{background:var(--hi);color:#0a0d0b;border-color:var(--hi);}
+  .btn:active{transform:translateY(1px);}
+  .btn:disabled{opacity:.3;cursor:default;}
+  .btn.red{border-color:var(--red);color:#e08472;}
+  .btn.red:hover{background:var(--red);color:#f0eae6;border-color:var(--red);}
+
+  /* ===== 表題 ===== */
+  #s-title h1{
+    font-family:var(--fj);
+    font-size:clamp(40px,12vw,72px);letter-spacing:.5em;text-indent:.5em;font-weight:400;
+    color:var(--hi);text-align:center;white-space:nowrap;
+    text-shadow:0 0 20px rgba(207,224,204,.35);
+  }
+  html[lang="en"] #s-title h1{font-size:clamp(26px,8vw,54px);letter-spacing:.14em;text-indent:.14em;}
+  #s-title .rule{width:min(70vw,320px);height:1px;margin:24px 0 18px;background:var(--line);}
+  #s-title .sub{font-size:11.5px;letter-spacing:.2em;color:var(--txt);opacity:.75;
+    margin-bottom:34px;text-align:center;line-height:2;}
+  #marks{margin-top:30px;display:flex;gap:11px;justify-content:center;flex-wrap:wrap;}
+  #marks span{width:70px;height:70px;display:flex;align-items:center;justify-content:center;
+    font-family:var(--fj);font-size:13px;line-height:1.4;text-align:center;padding:4px;
+    border:1px solid var(--line);color:#5d6b60;}
+  #marks span.got{border-color:var(--hi);color:var(--hi);}
+  #btn-resume{margin-bottom:11px;}
+  #reset-zone{margin-top:24px;}
+  #btn-reset{font-size:11px;padding:7px 14px;color:#5d6b60;}
+
+  /* ===== 説明（最小限） ===== */
+  .brief{
+    width:min(92vw,470px);border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+    padding:26px 22px 20px;font-family:var(--fj);font-size:14.5px;line-height:2.1;
+    letter-spacing:.05em;
+  }
+  .brief p{margin-bottom:1.2em;}
+  .brief .actions{text-align:center;margin-top:20px;}
+
+  /* ===== モニタ ===== */
+  /* 縦長の画面では上に貼りつけず中央へ。下が真っ黒に余るのを避ける */
+  #s-cam{justify-content:center;padding-top:46px;}
+  /* 画は 3:2 固定。横幅だけで決めると、横向きの端末で縦にあふれる。
+     上下の余白（--chrome）を引いた高さから逆算して、幅の上限に混ぜる。 */
+  #rig{width:min(96vw,660px,calc((100vh - var(--chrome)) * 1.5));
+    display:flex;flex-direction:column;gap:9px;}
+  #hud{display:flex;justify-content:space-between;align-items:center;
+    font-size:11px;letter-spacing:.16em;color:#6f8073;}
+  #rec{display:flex;align-items:center;gap:6px;}
+  #recdot{width:7px;height:7px;border-radius:50%;background:var(--red);
+    animation:blip 1.6s steps(1) infinite;}
+  @keyframes blip{0%,55%{opacity:1}56%,100%{opacity:.15}}
+  #hud.glitch{color:var(--red);}
+
+  .cam{
+    position:relative;width:100%;aspect-ratio:480/320;
+    border:1px solid var(--line);background:#000;overflow:hidden;cursor:crosshair;
+  }
+  .cam svg{display:block;width:100%;height:100%;}
+  /* 走査線とにじみ。CCTVらしさはここで出す */
+  .cam::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(180deg,
+      rgba(0,0,0,.30) 0 1px, rgba(0,0,0,0) 1px 3px);
+    mix-blend-mode:multiply;
+  }
+  .cam::before{
+    content:"";position:absolute;inset:0;pointer-events:none;z-index:3;
+    box-shadow:inset 0 0 54px rgba(0,0,0,.68), inset 0 0 18px rgba(0,0,0,.45);
+  }
+  .cam .stamp{
+    position:absolute;left:10px;bottom:8px;z-index:4;
+    font-family:var(--f);font-size:12px;letter-spacing:.1em;
+    color:#d8e6d6;text-shadow:0 0 5px #000,0 1px 2px #000;
+  }
+  .cam .lab{
+    position:absolute;right:10px;top:8px;z-index:4;
+    font-family:var(--f);font-size:11px;letter-spacing:.16em;
+    color:#d8e6d6;text-shadow:0 0 5px #000;
+  }
+  .cam.shake{animation:shk .32s linear;}
+  @keyframes shk{
+    0%,100%{transform:translate(0,0)}
+    20%{transform:translate(-3px,1px)}
+    45%{transform:translate(2px,-2px)}
+    70%{transform:translate(-1px,2px)}
+  }
+  .cam .flash{position:absolute;inset:0;z-index:5;pointer-events:none;opacity:0;}
+  .cam .flash.miss{background:rgba(204,59,40,.34);animation:fl .45s ease-out;}
+  .cam .flash.hit{background:rgba(207,224,204,.22);animation:fl .5s ease-out;}
+  @keyframes fl{from{opacity:1}to{opacity:0}}
+  /* 正解の位置を示す枠 */
+  #ring{position:absolute;z-index:4;border:2px solid var(--hi);border-radius:2px;
+    box-shadow:0 0 14px rgba(207,224,204,.6);opacity:0;pointer-events:none;
+    transition:opacity .25s;}
+  #ring.on{opacity:1;}
+
+  #bar{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;}
+  #bar .btn{flex:1 1 190px;max-width:100%;font-size:13px;padding:12px 14px;}
+  #tip{font-family:var(--fj);font-size:12px;letter-spacing:.08em;color:#6f8073;
+    text-align:center;min-height:1.4em;}
+
+  /* ===== 結末 ===== */
+  #s-end{justify-content:flex-start;padding-top:42px;}
+  #endwrap{width:min(96vw,660px,calc((100vh - 210px) * 1.5));
+    display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - 54px);}
+  #endcam{flex:0 0 auto;}
+  #endtext{
+    overflow-y:auto;font-family:var(--fj);font-size:15px;line-height:2.15;
+    letter-spacing:.05em;color:var(--txt);padding:2px 2px 8px;
+  }
+  #endtext p{margin-bottom:1.1em;opacity:0;}
+  #endtext p.on{opacity:1;transition:opacity .45s ease;}
+  #endtext p.stamp{font-family:var(--f);color:var(--hi);letter-spacing:.14em;font-size:14px;}
+  /* 砂嵐より上。body 直下に置くこと（section 内だと埋もれる） */
+  #endbar{position:fixed;left:0;right:0;bottom:22px;z-index:92;
+    display:flex;justify-content:center;gap:9px;flex-wrap:wrap;pointer-events:none;}
+  #endbar .btn{pointer-events:auto;}
+
+  /* 砂嵐 */
+  /* 完全に不透明にしないこと。最後の一枚が薄く透けているほうが悪い */
+  #snow{position:fixed;inset:0;z-index:86;opacity:0;pointer-events:none;
+    transition:opacity 2.2s ease;background:#000;}
+  #snow.on{opacity:.88;}
+  #snow canvas{width:100%;height:100%;display:block;}
+
+  #topbar{position:fixed;top:11px;right:13px;z-index:70;display:flex;gap:7px;}
+  #topbar .btn{padding:6px 11px;font-size:11px;letter-spacing:.05em;white-space:nowrap;}
+  #home-btn{position:fixed;top:11px;left:13px;z-index:70;padding:6px 11px;font-size:11px;
+    letter-spacing:.05em;display:none;}
+
+  /* ===== 端末の向き ===== */
+  #rotate{position:fixed;inset:0;z-index:200;display:none;
+    align-items:center;justify-content:center;text-align:center;padding:26px;
+    background:var(--bg);color:var(--txt);font-family:var(--fj);}
+  #rotate p{margin-top:18px;font-size:14px;letter-spacing:.14em;line-height:2;}
+  /* 触る端末を縦に持っているときだけ。狭いデスクトップ窓では出さない */
+  @media (pointer:coarse) and (orientation:portrait) and (max-width:760px){
+    #rotate{display:flex;}
+  }
+  /* 横に持った端末は高さが足りない。上下の部品を薄くして画に高さを譲る */
+  @media (orientation:landscape) and (max-height:520px){
+    :root{--chrome:104px;}
+    #s-cam,#s-end{padding-top:6px;}
+    #topbar,#home-btn{top:6px;}
+    #topbar .btn,#home-btn{padding:4px 9px;font-size:10px;}
+    #rig{gap:5px;}
+    #hud{font-size:9px;letter-spacing:.06em;}
+    #tip{font-size:11px;min-height:1.2em;}
+    #bar .btn{padding:8px 12px;font-size:12px;}
+    #endwrap{gap:6px;}
+  }
+
+  @media (max-width:520px){
+    #s-title h1{font-size:clamp(32px,13vw,52px);letter-spacing:.3em;text-indent:.3em;}
+    /* 上のボタン列（top:11px + 高さ約28px）にHUDがかからない高さを取る */
+    #s-cam,#s-end{padding-top:52px;}
+    #hud{font-size:9.5px;letter-spacing:.08em;}
+    .cam .stamp{font-size:10.5px;}
+    .cam .lab{font-size:9.5px;}
+    #bar .btn{flex:1 1 100%;font-size:12.5px;}
+    .brief{font-size:13.5px;line-height:2;padding:22px 16px 18px;}
+    #endtext{font-size:14px;line-height:2.05;}
+  }
+</style>
+</head>
+<body>
+
+<button id="home-btn" class="btn">もどる</button>
+<div id="topbar">
+  <button id="lang-btn" class="btn">English</button>
+  <button id="snd-btn" class="btn">音　入</button>
+</div>
+
+<section id="s-title" class="on">
+  <h1>定点</h1>
+  <div class="rule"></div>
+  <div class="sub" id="t-sub"></div>
+  <button id="btn-resume" class="btn" style="display:none">つづきから</button>
+  <button id="btn-start" class="btn">再生する</button>
+  <div id="marks"></div>
+  <div id="reset-zone"><button id="btn-reset" class="btn">記録を消して、最初から</button></div>
+</section>
+
+<section id="s-brief"><div class="brief" id="brief"></div></section>
+
+<section id="s-cam">
+  <div id="rig">
+    <div id="hud">
+      <span id="hud-l"></span>
+      <span id="rec"><span id="recdot"></span><span id="hud-r">REC</span></span>
+    </div>
+    <div class="cam" id="cam">
+      <div id="svgwrap"></div>
+      <div class="stamp" id="stamp"></div>
+      <div class="lab" id="lab"></div>
+      <div class="flash" id="flash"></div>
+      <div id="ring"></div>
+    </div>
+    <div id="tip"></div>
+    <div id="bar"></div>
+  </div>
+</section>
+
+<section id="s-end">
+  <div id="endwrap">
+    <div class="cam" id="endcam"><div id="endsvg"></div><div class="stamp" id="endstamp"></div></div>
+    <div id="endtext"></div>
+  </div>
+</section>
+<!-- 砂嵐(z:86)より上に出す必要がある。section 内に置くと、
+     section の z-index が作る重なり文脈から出られず埋もれる。 -->
+<div id="endbar"></div>
+
+<div id="snow"><canvas id="snowc"></canvas></div>
+
+<div id="rotate">
+  <div>
+    <svg viewBox="0 0 120 90" width="86" height="64" aria-hidden="true">
+      <rect x="46" y="8" width="28" height="48" rx="3" fill="none" stroke="#9fb3a2" stroke-width="2"/>
+      <rect x="34" y="62" width="52" height="26" rx="3" fill="none" stroke="#cfe0cc" stroke-width="2"/>
+      <path d="M92 34a30 30 0 0 1-9 20" fill="none" stroke="#cfe0cc" stroke-width="2"/>
+      <path d="M79 50l4 6 7-2z" fill="#cfe0cc"/>
+    </svg>
+    <p id="rot-msg"></p>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const J=(ja,en)=>({ja,en});
+let lang="ja";
+try{ const s=localStorage.getItem("teiten_lang"); if(s==="en"||s==="ja") lang=s; }catch(e){}
+const L=x=>{
+  if(x==null) return x;
+  if(typeof x==="object"&&("ja" in x||"en" in x)) return lang==="en"?x.en:x.ja;
+  return x;
+};
+
+const UI={
+  pageTitle:J("定点 ｜ 怪談","Fixed Point | A Ghost Story"),
+  title:J("定点","Fixed Point"),
+  sub:J("二つの記録画像を見比べて、<br>変わったところを押してください。",
+        "Compare the two recorded frames.<br>Press the part that has changed."),
+  home:J("もどる","Back"),
+  soundOn:J("音　入","Sound On"),
+  soundOff:J("音　切","Sound Off"),
+  langBtn:J("English","日本語"),
+  start:J("再生する","Play"),
+  resumeAt:J("つづきから　%s","Continue — %s"),
+  resetDefault:J("記録を消して、最初から","Erase the Record — Start Over"),
+  resetConfirm:J("本当に消しますか（もう一度）","Really erase it? (tap again)"),
+  resetDone:J("消しました","Erased."),
+  markUnknown:J("？","?"),
+  begin:J("確認をはじめる","Begin Review"),
+  swap:J("もう一方を表示","Show the other frame"),
+  nochange:J("変化なし","No change"),
+  tipFind:J("変わったところを、画面上で押してください。","Press the part of the image that has changed."),
+  tipMiss:J("そこではありません。","Not there."),
+  tipHit:J("記録しました。","Recorded."),
+  next:J("次の組へ","Next pair"),
+  camLab:J("資材倉庫　二番","STORE ROOM 2"),
+  rotate:J("画面を横にしてください","Please turn your screen sideways."),
+  stopIt:J("再生を止める","Stop playback"),
+  watch:J("最後まで見る","Watch to the end"),
+  leave:J("画面を閉じる","Close the screen"),
+  marks:{
+    teishi:J("停止","Stopped"),
+    kanshi:J("完視","Watched")
+  }
+};
+
+/* ==========================================================
+   これは読ませる怪談ではなく、見せる怪談。
+   ・プレイヤーは二枚の定点画像を見比べ、変わった場所を押すだけ。
+   ・前半は扉・椅子・鞄・時計といった無害な差分で、操作を覚えさせる。
+   ・五組目から人影が入る。以後、正解は必ず人影になる。
+     つまりプレイヤーは、自分の指で毎回それを指し示すことになる。
+   ・六組目以降は creep が働く。一定時間解けないと、人影が一段近づく。
+     過去の記録画像である「前」の側も同時に書き換わる。
+   ・八組目は差分なし。正解は「変化なし」。人影はもう部屋にいない。
+   ========================================================== */
+
+/* ---------- 画の生成 ---------- */
+/* far を扉の中（x42〜122）に置かないこと。
+   影は黒なので、開いた扉の暗がりに立たせると完全に見えなくなる。
+   扉のすぐ脇、壁を背にした位置に出すこと。 */
+const FIGP={
+  far :{x:142,y:204,h:60 },
+  mid :{x:182,y:240,h:90 },
+  near:{x:348,y:300,h:170},
+  huge:{x:250,y:340,h:300}
+};
+const FIGBOX={
+  far :{x:118,y:132,w:50 ,h:80 },
+  mid :{x:143,y:143,w:78 ,h:100},
+  near:{x:298,y:126,w:100,h:86 },
+  huge:{x:120,y:30 ,w:260,h:210}
+};
+/* 上から照らされた室内をCCTVで撮ると、人は明るい塊ではなく黒い影になる。
+   丸い胴に丸い頭を載せると玩具に見えるので、肩の傾きを必ず入れること。 */
+function figure(kind,face){
+  if(!kind) return "";
+  const p=FIGP[kind], h=p.h, x=p.x, b=p.y;
+  /* いちばん近い一枚だけは、頭と肩を実寸より大きく取る。
+     等身のままだと「遠くにいる大男」に見えて、レンズに寄った感じが出ない。 */
+  const near1=(kind==="huge");
+  const w=h*(near1?0.205:0.155), hr=h*(near1?0.104:0.072);
+  const headCy=b-h+hr;
+  const shY=headCy+hr*1.95;
+  const torso=
+    `M ${x-w*0.74} ${b}`+
+    ` L ${x-w*0.99} ${shY+h*0.11}`+
+    ` C ${x-w*1.02} ${shY+h*0.015}, ${x-w*0.56} ${shY-h*0.018}, ${x-hr*0.78} ${shY-h*0.028}`+
+    ` L ${x+hr*0.78} ${shY-h*0.028}`+
+    ` C ${x+w*0.56} ${shY-h*0.018}, ${x+w*1.02} ${shY+h*0.015}, ${x+w*0.99} ${shY+h*0.11}`+
+    ` L ${x+w*0.74} ${b} Z`;
+  let g=`<g filter="url(#blr)">`;
+  g+=`<path d="${torso}" fill="#0c110c" opacity=".88"/>`;
+  if(face){
+    /* 顔がこちらを向いた状態。白飛びさせず、灰のまま滲ませる */
+    g+=`<ellipse cx="${x}" cy="${headCy}" rx="${hr*0.84}" ry="${hr}" fill="#5f6a5d" opacity=".9"/>`;
+    g+=`<ellipse cx="${x-hr*0.33}" cy="${headCy-hr*0.06}" rx="${hr*0.19}" ry="${hr*0.25}" fill="#0d120d" opacity=".85"/>`;
+    g+=`<ellipse cx="${x+hr*0.33}" cy="${headCy-hr*0.06}" rx="${hr*0.19}" ry="${hr*0.25}" fill="#0d120d" opacity=".85"/>`;
+  }else{
+    g+=`<ellipse cx="${x}" cy="${headCy}" rx="${hr*0.84}" ry="${hr}" fill="#0c110c" opacity=".88"/>`;
+  }
+  g+=`</g>`;
+  return g;
+}
+function chairAt(x,y,s,out){
+  const w=17*s,h=15*s, dx=out?11*s:0, dy=out?5*s:0;
+  return `<g fill="#454d46" transform="translate(${dx},${dy})">
+    <rect x="${x}" y="${y-h}" width="${w}" height="${2.6*s}" rx="1"/>
+    <rect x="${x+1.6*s}" y="${y-h-9*s}" width="${w-3.2*s}" height="${9*s}" rx="1" opacity=".82"/>
+    <rect x="${x+1.4*s}" y="${y-h+2.6*s}" width="${1.7*s}" height="${h-2.6*s}"/>
+    <rect x="${x+w-3.1*s}" y="${y-h+2.6*s}" width="${1.7*s}" height="${h-2.6*s}"/>
+  </g>`;
+}
+function deskAt(x,y,w,s){
+  return `<g fill="#3d443e">
+    <rect x="${x}" y="${y}" width="${w}" height="${4.5*s}" rx="1"/>
+    <rect x="${x+3*s}" y="${y+4.5*s}" width="${2.2*s}" height="${13*s}"/>
+    <rect x="${x+w-5.2*s}" y="${y+4.5*s}" width="${2.2*s}" height="${13*s}"/>
+  </g>`;
+}
+function scene(s){
+  const cl=s.clock||{h:70,m:190};
+  const lightOn = s.light!==0;
+  /* dawn 0→1 で夜明け。窓の内側が明るくなり、室内に冷たい光が回る。
+     時刻表示だけ進んで絵が一晩じゅう同じだと、時間が数字だけになる。 */
+  const dw=Math.max(0,Math.min(1,s.dawn||0));
+  const mix=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
+  const rgb=c=>`rgb(${c[0]},${c[1]},${c[2]})`;
+  const winC=rgb(mix([20,26,22],[122,140,132],dw));
+  return `<svg viewBox="0 0 480 320" xmlns="http://www.w3.org/2000/svg">
+<defs>
+ <!-- 黒い影を置くので、壁と床は沈めすぎないこと。影が背景に溶ける -->
+ <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+   <stop offset="0" stop-color="#353d35"/><stop offset="1" stop-color="#232a24"/>
+ </linearGradient>
+ <linearGradient id="flr" x1="0" y1="0" x2="0" y2="1">
+   <stop offset="0" stop-color="#2e372f"/><stop offset="1" stop-color="#1c221d"/>
+ </linearGradient>
+ <radialGradient id="lamp" cx="50%" cy="0%" r="70%">
+   <stop offset="0" stop-color="rgba(206,224,203,.30)"/>
+   <stop offset="1" stop-color="rgba(206,224,203,0)"/>
+ </radialGradient>
+ <filter id="blr"><feGaussianBlur stdDeviation="1.5"/></filter>
+ <filter id="grain">
+   <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="7"/>
+   <feColorMatrix type="saturate" values="0"/>
+   <feComponentTransfer><feFuncA type="linear" slope=".2"/></feComponentTransfer>
+ </filter>
+</defs>
+<rect width="480" height="320" fill="#0d110e"/>
+<rect y="44" width="480" height="158" fill="url(#wall)"/>
+<rect y="202" width="480" height="118" fill="url(#flr)"/>
+<rect width="480" height="44" fill="#1a201b"/>
+${lightOn?`<rect width="480" height="150" fill="url(#lamp)"/>`:""}
+<rect x="198" y="10" width="84" height="9" rx="2" fill="${lightOn?"#c9dcc6":"#2b322c"}"/>
+<g stroke="#2b332c" stroke-width="1" opacity=".55">
+  <line x1="240" y1="202" x2="-30" y2="320"/><line x1="240" y1="202" x2="140" y2="320"/>
+  <line x1="240" y1="202" x2="340" y2="320"/><line x1="240" y1="202" x2="510" y2="320"/>
+  <line x1="0" y1="248" x2="480" y2="248"/><line x1="0" y1="288" x2="480" y2="288"/>
+</g>
+<rect x="0" y="198" width="480" height="5" fill="#39413a"/>
+
+<!-- 扉 -->
+<rect x="42" y="68" width="80" height="134" fill="#39413a"/>
+<rect x="46" y="72" width="72" height="130" fill="${s.door?"#0a0d0b":"#333b35"}"/>
+${s.door?"":`<circle cx="110" cy="140" r="2.6" fill="#5a635b"/>`}
+
+<!-- 窓とブラインド -->
+<rect x="332" y="78" width="116" height="88" fill="#39413a"/>
+<rect x="336" y="82" width="108" height="80" fill="${winC}"/>
+<g stroke="#39413a" stroke-width="3" opacity=".9">
+${[0,1,2,3,4,5,6,7].map(i=>`<line x1="336" y1="${88+i*10}" x2="444" y2="${88+i*10}"/>`).join("")}
+</g>
+
+<!-- 掲示板 -->
+<rect x="150" y="84" width="62" height="46" fill="#333b33"/>
+<rect x="155" y="89" width="24" height="16" fill="#454d45"/>
+<rect x="155" y="110" width="42" height="6" fill="#3f473f"/>
+
+<!-- 時計 -->
+<circle cx="238" cy="150" r="15" fill="#2c332d" stroke="#4c554d" stroke-width="1.5"/>
+<line x1="238" y1="150" x2="${238+9*Math.sin(cl.h*Math.PI/180)}" y2="${150-9*Math.cos(cl.h*Math.PI/180)}" stroke="#c3cdbf" stroke-width="2"/>
+<line x1="238" y1="150" x2="${238+12.5*Math.sin(cl.m*Math.PI/180)}" y2="${150-12.5*Math.cos(cl.m*Math.PI/180)}" stroke="#c3cdbf" stroke-width="1.4"/>
+
+<!-- 机と椅子 -->
+${deskAt(46,214,120,1)}
+${deskAt(196,214,120,1)}
+${deskAt(346,214,110,1)}
+${chairAt(88,214,1,0)}
+${chairAt(238,214,1,s.chair?1:0)}
+${chairAt(386,214,1,0)}
+${deskAt(20,262,150,1.25)}
+${deskAt(210,262,150,1.25)}
+${chairAt(70,262,1.25,0)}
+${chairAt(262,262,1.25,0)}
+
+<!-- 鞄 -->
+${s.bag?`<g fill="#39413a"><rect x="266" y="292" width="34" height="17" rx="4"/><rect x="277" y="286" width="12" height="7" rx="3" fill="none" stroke="#39413a" stroke-width="2"/></g>`:""}
+
+${figure(s.fig,s.face)}
+
+${dw>0?`<rect x="336" y="82" width="108" height="80" fill="#cfe0d6" opacity="${(dw*0.22).toFixed(3)}"/>
+<rect y="44" width="480" height="276" fill="#8fa8b4" opacity="${(dw*0.10).toFixed(3)}"/>`:""}
+${lightOn?"":`<rect width="480" height="320" fill="#050806" opacity="${(0.30-dw*0.22).toFixed(3)}"/>`}
+<rect width="480" height="320" filter="url(#grain)" opacity=".55"/>
+<rect width="480" height="320" fill="#7d9c85" opacity="${(0.05-dw*0.03).toFixed(3)}"/>
+</svg>`;
+}
+
+/* ---------- 組 ---------- */
+const BASE={door:0,chair:0,bag:1,light:1,dawn:0,clock:{h:70,m:190},fig:null,face:0};
+const mk=(o)=>Object.assign({},BASE,o);
+const LADDER=["far","mid","near","huge"];
+/* 人影の位置は、その時点までの誤答数で決まる。
+   外すほど近い。総当たりで押した者には、いきなり目の前に立たれる。 */
+function figIdx(base){ return Math.min(LADDER.length-1, base+state.miss); }
+
+/* 六組。無害な三組（扉・鞄・椅子）→ 人影二組 → 差分なし。
+   時計は四組目で黙って進んでいる。設問にはしない。 */
+/* 壁の時計は三組目まで時刻どおりに動く。四組目から二時二十分で止まる。
+   最初から狂わせておくと、止まったことに気づけない。 */
+const CLK={ t2341:{h:350,m:246}, t0103:{h:31,m:18}, t0220:{h:70,m:120} };
+const ROUNDS=[
+ { t:["23:41:02","23:41:58"], dawn:0,
+   a:mk({clock:CLK.t2341}), b:mk({door:1,clock:CLK.t2341}), ans:{x:42,y:68,w:80,h:134} },
+ { t:["01:03:11","01:04:00"], dawn:0,
+   a:mk({door:1,clock:CLK.t0103}), b:mk({door:1,bag:0,clock:CLK.t0103}), ans:{x:258,y:280,w:52,h:36} },
+ { t:["02:20:45","02:21:30"], dawn:0,
+   a:mk({door:1,bag:0,clock:CLK.t0220}), b:mk({door:1,bag:0,chair:1,clock:CLK.t0220}), ans:{x:228,y:180,w:66,h:56} },
+ /* 四組目：人影が現れる。答えは人影。 */
+ { t:["03:15:09","03:15:52"], dawn:0, fig:{base:0, isAnswer:true} },
+ /* 五組目：人影は両方に写っている。答えは扉。
+    ここで一度だけ「人影を押せばいい」という癖を裏切る。
+    これを外すと、正解は確認作業に戻る。 */
+ { t:["04:30:57","04:31:41"], dawn:.15, fig:{base:2, isAnswer:false} },
+ /* 六組目：人影は消えている。扉は閉まったまま。 */
+ { t:["05:52:14","05:53:02"], dawn:1,
+   a:mk({bag:0,chair:1,light:0,dawn:1,clock:CLK.t0220}),
+   b:mk({bag:0,chair:1,light:0,dawn:1,clock:CLK.t0220}),
+   ans:null }
+];
+const DOORBOX={x:42,y:68,w:80,h:134};
+/* 人影の組だけは、描くたびに位置を計算し直す */
+function resolveRound(i){
+  const R=ROUNDS[i];
+  if(!R.fig) return R;
+  const k=figIdx(R.fig.base);
+  const here=LADDER[k];
+  const dawn=R.dawn, light=(i>=4?0:1);
+  if(R.fig.isAnswer){
+    const common={door:1,bag:0,chair:1,clock:CLK.t0220,dawn,light};
+    return {t:R.t, a:mk(common), b:mk(Object.assign({fig:here},common)), ans:FIGBOX[here]};
+  }
+  /* 人影は両方に写る。差は扉が閉じたことだけ。
+     人影は組と組のあいだに勝手に近づいており、その移動は設問ではない。 */
+  const base={bag:0,chair:1,clock:CLK.t0220,dawn,light,fig:here,face:1};
+  return {t:R.t,
+    a:mk(Object.assign({door:1},base)),
+    b:mk(Object.assign({door:0},base)),
+    ans:DOORBOX};
+}
+
+const BRIEF=[
+ J("警備会社から回ってきた仕事だった。監視カメラの記録を、四十五秒おきに切り出した画像で突き合わせて、変化があれば記録する。夜のあいだ、ひたすらそれだけをやる。",
+   "The job came down from the security company. Compare stills cut from the camera recording at forty-five second intervals, and log any change. That, and nothing else, all night."),
+ J("対象は、閉鎖された職業訓練校の資材倉庫。四年前から無人になっている。",
+   "The subject is the store room of a closed vocational school. Nobody has been inside for four years."),
+ J("六組ある。押し間違えても、やり直しはきく。",
+   "There are six pairs. If you press the wrong place, you may try again.")
+];
+
+/* ---------- state ---------- */
+const state={ i:0, showB:false, started:false, ended:false, miss:0, stage:null };
+function loadMarks(){ try{const v=JSON.parse(localStorage.getItem("teiten_end")||"[]");return Array.isArray(v)?v:[];}catch(e){return [];} }
+function saveMark(k){ try{const v=loadMarks(); if(!v.includes(k)){v.push(k);localStorage.setItem("teiten_end",JSON.stringify(v));}}catch(e){} }
+const SAVE="teiten_save";
+function saveGame(){ if(state.ended)return; try{localStorage.setItem(SAVE,JSON.stringify({v:2,i:state.i,miss:state.miss,lang}));}catch(e){} }
+function loadSave(){ try{const s=JSON.parse(localStorage.getItem(SAVE)||"null");
+  if(!s||s.v!==2||!Number.isInteger(s.i)||s.i<0||s.i>=ROUNDS.length)return null;return s;}catch(e){return null;} }
+function clearSave(){ try{localStorage.removeItem(SAVE);}catch(e){} }
+
+/* ---------- 音 ---------- */
+let ctx=null,sndOn=true,bus=null,amb=null;
+function initAudio(){ if(ctx)return; try{
+  ctx=new (window.AudioContext||window.webkitAudioContext)();
+  bus=ctx.createGain(); bus.gain.value=0; bus.connect(ctx.destination);
+}catch(e){ctx=null;} }
+function startAmb(){
+  initAudio(); if(!ctx||amb)return;
+  if(ctx.state==="suspended") ctx.resume();
+  const t=ctx.currentTime;
+  amb=ctx.createGain(); amb.gain.value=.5; amb.connect(bus);
+  const o=ctx.createOscillator(); o.type="sine"; o.frequency.value=60;
+  const og=ctx.createGain(); og.gain.value=.035; o.connect(og); og.connect(amb); o.start(t);
+  const len=Math.floor(2*ctx.sampleRate);
+  const buf=ctx.createBuffer(1,len,ctx.sampleRate); const d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1);
+  const src=ctx.createBufferSource(); src.buffer=buf; src.loop=true;
+  const bp=ctx.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=1500; bp.Q.value=.5;
+  const ng=ctx.createGain(); ng.gain.value=.035;
+  src.connect(bp); bp.connect(ng); ng.connect(amb); src.start(t);
+  bus.gain.linearRampToValueAtTime(sndOn?.4:0,t+2);
+}
+function blip(f,dur,vol,type){
+  if(!ctx||!sndOn)return; const t=ctx.currentTime;
+  const o=ctx.createOscillator(); o.type=type||"square"; o.frequency.value=f;
+  const g=ctx.createGain();
+  g.gain.setValueAtTime(.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol||.05,t+.008);
+  g.gain.exponentialRampToValueAtTime(.0001,t+(dur||.09));
+  o.connect(g); g.connect(bus); o.start(t); o.stop(t+(dur||.09)+.02);
+}
+function sHit(){ blip(1180,.07,.045); setTimeout(()=>blip(1560,.09,.04),80); }
+function sMiss(){ blip(150,.16,.06,"sawtooth"); }
+function sSwap(){ blip(700,.035,.03); }
+function sCreep(){
+  if(!ctx||!sndOn)return; const t=ctx.currentTime;
+  const o=ctx.createOscillator(); o.type="sawtooth";
+  o.frequency.setValueAtTime(80,t); o.frequency.linearRampToValueAtTime(44,t+1.2);
+  const bp=ctx.createBiquadFilter(); bp.type="lowpass"; bp.frequency.value=260;
+  const g=ctx.createGain();
+  g.gain.setValueAtTime(.0001,t);
+  g.gain.exponentialRampToValueAtTime(.06,t+.12);
+  g.gain.exponentialRampToValueAtTime(.0004,t+1.4);
+  o.connect(bp); bp.connect(g); g.connect(bus); o.start(t); o.stop(t+1.45);
+}
+function sStatic(on){
+  if(!ctx)return;
+  if(on){ bus.gain.linearRampToValueAtTime(sndOn?.55:0,ctx.currentTime+.6); }
+}
+$("snd-btn").onclick=()=>{
+  initAudio(); sndOn=!sndOn;
+  $("snd-btn").textContent=sndOn?L(UI.soundOn):L(UI.soundOff);
+  if(bus&&ctx) bus.gain.linearRampToValueAtTime(sndOn?.4:0,ctx.currentTime+.3);
+  if(sndOn) startAmb();
+};
+$("lang-btn").onclick=()=>setLang(lang==="ja"?"en":"ja");
+function setLang(v){ lang=v; try{localStorage.setItem("teiten_lang",lang);}catch(e){} applyUI(); }
+
+function applyUI(){
+  document.documentElement.lang=lang;
+  document.title=L(UI.pageTitle);
+  $("home-btn").textContent=L(UI.home);
+  $("snd-btn").textContent=sndOn?L(UI.soundOn):L(UI.soundOff);
+  $("lang-btn").textContent=L(UI.langBtn);
+  document.querySelector("#s-title h1").textContent=L(UI.title);
+  $("t-sub").innerHTML=L(UI.sub);
+  $("btn-start").textContent=L(UI.start);
+  if(!resetArmed) $("btn-reset").textContent=L(UI.resetDefault);
+  $("hud-r").textContent="REC";
+  $("rot-msg").textContent=L(UI.rotate);
+  renderMarks();
+  if(state.started&&!state.ended&&state.stage==="cam") drawRound(false);
+}
+
+/* ---------- 画面 ---------- */
+function show(id){
+  document.querySelectorAll("section").forEach(s=>s.classList.remove("on"));
+  $(id).classList.add("on");
+  $("home-btn").style.display=(id==="s-title")?"none":"inline-block";
+  state.stage = id==="s-cam"?"cam":(id==="s-end"?"end":null);
+}
+let endTimers=[];
+function clearAll(){
+  endTimers.forEach(clearTimeout); endTimers=[];
+  $("snow").classList.remove("on"); stopSnow();
+  $("ring").classList.remove("on");
+  $("hud").classList.remove("glitch");
+  $("endbar").innerHTML="";   /* body 直下なので、明示的に消さないと表紙に残る */
+}
+/* 表紙へ戻す唯一の入口。結末の「画面を閉じる」もここを通す。
+   location.reload() は file:// で黙って失敗することがあり、
+   押しても何も起きないという事故になる。頼らないこと。 */
+function goHome(){
+  clearAll();
+  Object.assign(state,{i:0,showB:false,started:false,ended:true,miss:0});
+  show("s-title");
+  $("lang-btn").style.display="inline-block";
+  renderMarks();
+}
+$("home-btn").onclick=goHome;
+
+function renderMarks(){
+  const got=loadMarks();
+  const defs=[["teishi",UI.marks.teishi],["kanshi",UI.marks.kanshi]];
+  $("marks").innerHTML=defs.map(([k,l])=>
+    `<span class="${got.includes(k)?"got":""}">${got.includes(k)?L(l):L(UI.markUnknown)}</span>`).join("");
+  $("btn-reset").disabled=got.length===0&&!loadSave();
+  const s=loadSave(), b=$("btn-resume");
+  if(!s){ b.style.display="none"; }
+  else { b.style.display="inline-block"; b.textContent=L(UI.resumeAt).replace("%s",(s.i+1)+" / "+ROUNDS.length); }
+}
+let resetArmed=false,resetTimer=null;
+$("btn-reset").onclick=()=>{
+  if($("btn-reset").disabled)return;
+  if(!resetArmed){
+    resetArmed=true; $("btn-reset").classList.add("red");
+    $("btn-reset").textContent=L(UI.resetConfirm);
+    resetTimer=setTimeout(()=>{resetArmed=false;$("btn-reset").classList.remove("red");
+      $("btn-reset").textContent=L(UI.resetDefault);},3000);
+    return;
+  }
+  clearTimeout(resetTimer); resetArmed=false;
+  try{localStorage.removeItem("teiten_end");}catch(e){}
+  clearSave(); renderMarks();
+  $("btn-reset").classList.remove("red");
+  $("btn-reset").textContent=L(UI.resetDone);
+  setTimeout(()=>{$("btn-reset").textContent=L(UI.resetDefault);},1500);
+};
+
+/* ---------- 進行 ---------- */
+$("btn-start").onclick=()=>{
+  initAudio(); startAmb(); clearAll();
+  $("lang-btn").style.display="none";
+  Object.assign(state,{i:0,showB:false,started:true,ended:false,miss:0});
+  clearSave();
+  $("brief").innerHTML=BRIEF.map(t=>`<p>${L(t)}</p>`).join("")+
+    `<div class="actions"><button class="btn" id="b-go">${L(UI.begin)}</button></div>`;
+  show("s-brief");
+  $("b-go").onclick=()=>startRound(0);
+};
+$("btn-resume").onclick=()=>{
+  const s=loadSave(); if(!s){renderMarks();return;}
+  if(s.lang&&s.lang!==lang) setLang(s.lang);
+  initAudio(); startAmb(); clearAll();
+  $("lang-btn").style.display="none";
+  Object.assign(state,{i:s.i,showB:false,started:true,ended:false,miss:s.miss|0});
+  startRound(s.i);
+};
+
+function startRound(i){
+  state.i=i; state.showB=false;
+  saveGame();
+  show("s-cam");
+  drawRound(true);
+}
+function drawRound(resetBar){
+  const R=resolveRound(state.i);
+  const s=state.showB?R.b:R.a;
+  $("svgwrap").innerHTML=scene(s);
+  $("stamp").textContent=R.t[state.showB?1:0];
+  $("lab").textContent=L(UI.camLab);
+  $("hud-l").textContent=(state.i+1)+" / "+ROUNDS.length;
+  if(resetBar!==false){
+    $("tip").textContent=L(UI.tipFind);
+    $("bar").innerHTML=
+      `<button class="btn" id="b-swap">${L(UI.swap)}</button>`+
+      `<button class="btn" id="b-none">${L(UI.nochange)}</button>`;
+    $("b-swap").onclick=()=>{ state.showB=!state.showB; sSwap(); drawRound(false); };
+    $("b-none").onclick=()=>answerNone();
+  }
+}
+$("cam").addEventListener("click",e=>{
+  if(state.stage!=="cam"||state.ended) return;
+  const R=resolveRound(state.i);
+  const r=$("cam").getBoundingClientRect();
+  const x=(e.clientX-r.left)/r.width*480, y=(e.clientY-r.top)/r.height*320;
+  if(R.ans && x>=R.ans.x && x<=R.ans.x+R.ans.w && y>=R.ans.y && y<=R.ans.y+R.ans.h) correct();
+  else miss();
+});
+function flash(kind){
+  const f=$("flash"); f.className="flash"; void f.offsetWidth; f.classList.add(kind);
+}
+/* 外すことに代償を持たせる。外した数だけ人影が近づき、
+   その場で描き直される。総当たりで押した者は、そのぶん早く目の前に来る。 */
+function miss(){
+  const wasFig=ROUNDS[state.i].fig!==undefined;
+  const before=wasFig?figIdx(ROUNDS[state.i].fig):-1;
+  state.miss++;
+  saveGame();
+  sMiss(); flash("miss");
+  $("tip").textContent=L(UI.tipMiss);
+  /* 人影がまだ出ていない組でも、外すたびにHUDだけが一瞬乱れる。
+     説明はしない。あとから因果に気づけるだけの手がかりを残す。 */
+  $("hud").classList.add("glitch");
+  setTimeout(()=>$("hud").classList.remove("glitch"),260);
+  /* 最終組は人影がいないので、このままだと外し得になる。
+     一コマだけ写して消す。押した本人にしか見えない。 */
+  if(state.i===ROUNDS.length-1){
+    const R6=resolveRound(state.i);
+    const s=Object.assign({},state.showB?R6.b:R6.a,{fig:"huge",face:1});
+    $("svgwrap").innerHTML=scene(s);
+    sCreep();
+    $("cam").classList.add("shake");
+    setTimeout(()=>$("cam").classList.remove("shake"),340);
+    setTimeout(()=>{ if(!state.ended&&state.stage==="cam") drawRound(false); },190);
+    return;
+  }
+  if(!wasFig) return;
+  const after=figIdx(ROUNDS[state.i].fig);
+  drawRound(false);
+  if(after>before){
+    sCreep();
+    $("cam").classList.add("shake");
+    $("hud").classList.add("glitch");
+    setTimeout(()=>$("cam").classList.remove("shake"),340);
+    setTimeout(()=>$("hud").classList.remove("glitch"),900);
+  }
+}
+function answerNone(){
+  const R=resolveRound(state.i);
+  if(R.ans===null) correct(); else miss();
+}
+function correct(){
+  sHit(); flash("hit");
+  const R=resolveRound(state.i);
+  $("tip").textContent=L(UI.tipHit);
+  if(R.ans){
+    const ring=$("ring"), c=$("cam").getBoundingClientRect();
+    ring.style.left=(R.ans.x/480*100)+"%";
+    ring.style.top=(R.ans.y/320*100)+"%";
+    ring.style.width=(R.ans.w/480*100)+"%";
+    ring.style.height=(R.ans.h/320*100)+"%";
+    ring.classList.add("on");
+  }
+  const last=(state.i===ROUNDS.length-1);
+  $("bar").innerHTML = last
+    ? `<button class="btn" id="b-nx">${L(UI.watch)}</button><button class="btn red" id="b-st">${L(UI.stopIt)}</button>`
+    : `<button class="btn" id="b-nx">${L(UI.next)}</button>`;
+  if(last){
+    $("b-nx").onclick=()=>ending("kanshi");
+    $("b-st").onclick=()=>ending("teishi");
+  }else{
+    $("b-nx").onclick=()=>{ $("ring").classList.remove("on"); startRound(state.i+1); };
+  }
+}
+
+/* ---------- 砂嵐 ---------- */
+let snowRAF=null, snowFit=null;
+function startSnow(){
+  const c=$("snowc"), g=c.getContext("2d");
+  const fit=()=>{ c.width=Math.floor(innerWidth/3); c.height=Math.floor(innerHeight/3); };
+  /* 結末のたびに登録すると溜まる。前回のぶんを外してから足す */
+  if(snowFit) removeEventListener("resize",snowFit);
+  snowFit=fit;
+  fit(); addEventListener("resize",fit);
+  const draw=()=>{
+    const img=g.createImageData(c.width,c.height), d=img.data;
+    for(let i=0;i<d.length;i+=4){
+      const v=Math.random()*255;
+      d[i]=v*.82; d[i+1]=v; d[i+2]=v*.86; d[i+3]=235;
+    }
+    g.putImageData(img,0,0);
+    snowRAF=requestAnimationFrame(draw);
+  };
+  draw();
+}
+function stopSnow(){
+  if(snowRAF){cancelAnimationFrame(snowRAF);snowRAF=null;}
+  if(snowFit){removeEventListener("resize",snowFit);snowFit=null;}
+}
+
+/* ---------- 結末 ---------- */
+function liveStamp(){
+  const d=new Date(), p=n=>String(n).padStart(2,"0");
+  return p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds());
+}
+function ending(key){
+  if(state.ended) return;
+  state.ended=true;
+  clearSave(); saveMark(key);
+
+  const E={
+    kanshi:{
+      scene:mk({door:1,chair:1,bag:0,clock:{h:230,m:40},light:0,fig:"huge",face:1}),
+      b:[
+        J("八組目に差分はなかった。人影は、どちらの画像にもいなかった。","There was no difference in the eighth pair. The figure was in neither frame."),
+        J("倉庫を出たのだと、私は報告書にそう書いた。","It had left the store room. That is what I wrote in the report."),
+        J("九組目は、送られてきていない。","A ninth pair was never sent to me."),
+        J("それでも画面は、切り替わり続けている。","The screen goes on changing over all the same."),
+        {live:1}
+      ]},
+    teishi:{
+      scene:mk({door:0,chair:1,bag:0,clock:{h:230,m:40},light:0,fig:"near"}),
+      b:[
+        J("再生を止めた。画面は暗くなり、送出も切れた。","I stopped the playback. The screen went dark and the feed cut out."),
+        J("五分ほどして、勝手に再生が始まった。","About five minutes later, it began playing again by itself."),
+        J("映っているのは、同じ倉庫ではなかった。扉が閉まっていて、椅子が引かれていて、机の向こうに人がいる。","What it showed was not the same store room. The door is shut, a chair is drawn out, and beyond the desk there is a person."),
+        J("背を向けて、画面を見ている。","With their back turned, watching a screen."),
+        {live:1}
+      ]}
+  }[key];
+
+  show("s-end");
+  $("endsvg").innerHTML=scene(E.scene);
+  $("endstamp").textContent=ROUNDS[ROUNDS.length-1].t[1];
+  $("endtext").innerHTML="";
+  $("endbar").innerHTML="";
+
+  let idx=0;
+  const step=()=>{
+    if(idx<E.b.length){
+      const item=E.b[idx];
+      const p=document.createElement("p");
+      if(item&&item.live){
+        p.className="stamp";
+        p.textContent=liveStamp();
+        const tk=setInterval(()=>{ p.textContent=liveStamp(); },1000);
+        endTimers.push(setTimeout(()=>clearInterval(tk),600000));
+        /* 記録ではなく、いまの時刻。秒が動くのを見せてから砂嵐へ落とす */
+        endTimers.push(setTimeout(()=>{
+          $("snow").classList.add("on"); startSnow(); sStatic(true);
+        },5200));
+      }else{
+        p.textContent=L(item);
+      }
+      $("endtext").appendChild(p);
+      endTimers.push(setTimeout(()=>p.classList.add("on"),30));
+      $("endtext").scrollTop=$("endtext").scrollHeight;
+      const txt=item&&item.live?"":String(L(item));
+      idx++;
+      endTimers.push(setTimeout(step, Math.max(1200,Math.min(3200,600+txt.length*(lang==="en"?26:58)))));
+    }else{
+      endTimers.push(setTimeout(()=>{
+        $("endbar").innerHTML=`<button class="btn" id="b-end">${L(UI.leave)}</button>`;
+        $("b-end").onclick=goHome;
+      },8200));
+    }
+  };
+  endTimers.push(setTimeout(step,700));
+}
+
+renderMarks();
+applyUI();
+</script>
+</body>
+</html>
